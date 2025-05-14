@@ -1,15 +1,19 @@
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import messagebox
 from PIL import Image, ImageTk
 import json
 import os
 import threading
 
-import utils  # Importa utils corretamente
+import utils
 from downloader import baixar_e_descompactar, PASTA_JOGOS
 from igdb_api import baixar_capa
+from remover import deletar_jogo
 
 CAPAS_DIR = "capas"
+FORMATOS_VALIDOS = (".iso", ".bin", ".img", ".mdf", ".nrg", ".gz", ".chd", ".cso")
+
+downloads_em_andamento = {}
 
 def carregar_jogos():
     with open('jogos.json', 'r') as f:
@@ -20,52 +24,99 @@ def obter_capa(nome_jogo):
         caminho = os.path.join(CAPAS_DIR, f"{nome_jogo}.jpg")
         if not os.path.exists(caminho):
             baixar_capa(nome_jogo)
-        imagem = Image.open(caminho)
-        imagem = imagem.resize((250, 410), Image.LANCZOS)
+        imagem = Image.open(caminho).resize((250, 410), Image.LANCZOS)
         return ImageTk.PhotoImage(imagem)
     except:
         return None
+
+def jogo_baixado(nome_base):
+    for root, _, arquivos in os.walk(PASTA_JOGOS):
+        for arquivo in arquivos:
+            if arquivo.lower().endswith(FORMATOS_VALIDOS) and nome_base.lower() in arquivo.lower():
+                return True
+    return False
+
+def atualizar_info_botao(jogo):
+    selecao = listbox.curselection()
+    if jogo_baixado(jogo["nome"]):
+        botao_acao.config(text="Baixado", state="disabled")
+        botao_excluir.config(text="Excluir Jogo", state="normal", command=lambda j=jogo: excluir_jogo_confirmacao(j))
+        botao_excluir.pack(pady=5)
+    else:
+        if selecao:
+            i = selecao[0]
+            botao_acao.config(text="Baixar Jogo", state="normal", command=lambda j=jogo, i=i: iniciar_download(j, listbox, i))
+        else:
+            botao_acao.config(text="Baixar Jogo", state="disabled")
+        botao_excluir.pack_forget()
+
+def excluir_jogo_confirmacao(jogo):
+    if messagebox.askyesno("Confirmar", f"Tem certeza que deseja excluir '{jogo['nome']}'?"):
+        arquivos = deletar_jogo(jogo["nome"])
+        if arquivos:
+            messagebox.showinfo("Sucesso", f"{len(arquivos)} arquivos removidos.")
+        else:
+            messagebox.showwarning("Aviso", "Nenhum arquivo encontrado para remover.")
+        exibir_jogos_filtrados()
+        botao_acao.config(text="", state="disabled")
+        botao_excluir.pack_forget()
+        capa_label.config(image='', text='')
 
 def iniciar_download(jogo, listbox, index):
     progresso_var = tk.StringVar(value=f"{jogo['nome']} (Iniciando...)")
     listbox.delete(index)
     listbox.insert(index, progresso_var.get())
+    botao_acao.config(text="Baixando...", state="disabled")
+    botao_excluir.pack_forget()
 
     def update_status(texto):
         progresso_var.set(texto)
         listbox.delete(index)
         listbox.insert(index, progresso_var.get())
+        downloads_em_andamento[jogo['nome']] = texto
 
     def thread_func():
         baixar_e_descompactar(jogo, update_status)
-        utils.atualizar_lista_baixados()
+        downloads_em_andamento.pop(jogo['nome'], None)
         exibir_jogos_filtrados()
+        atualizar_info_botao(jogo)
 
-    thread = threading.Thread(target=thread_func)
-    thread.start()
+    threading.Thread(target=thread_func).start()
+
+def abrir_janela_downloads():
+    janela = tk.Toplevel()
+    janela.title("Downloads em Andamento")
+    janela.geometry("500x300")
+
+    frame = tk.Frame(janela)
+    frame.pack(fill='both', expand=True, padx=10, pady=10)
+
+    texto_status = tk.Text(frame, state='disabled', wrap='word')
+    texto_status.pack(fill='both', expand=True)
+
+    def atualizar_texto():
+        texto_status.config(state='normal')
+        texto_status.delete("1.0", tk.END)
+        for nome, status in downloads_em_andamento.items():
+            texto_status.insert(tk.END, f"{nome}: {status}\n")
+        texto_status.config(state='disabled')
+        janela.after(1000, atualizar_texto)
+
+    atualizar_texto()
 
 def criar_interface():
-    global lista_baixados
-    global exibir_jogos_filtrados
+    global exibir_jogos_filtrados, botao_acao, botao_excluir, listbox, capa_label
 
     root = tk.Tk()
-    root.title("Biblioteca de Jogos PS2")
-
-    largura = 900
-    altura = 700
-    tela_largura = root.winfo_screenwidth()
-    tela_altura = root.winfo_screenheight()
-    x = (tela_largura - largura) // 2
-    y = (tela_altura - altura) // 2
+    root.title("PSLoad")
+    largura, altura = 1100, 700
+    x = (root.winfo_screenwidth() - largura) // 2
+    y = (root.winfo_screenheight() - altura) // 2
     root.geometry(f"{largura}x{altura}+{x}+{y}")
     root.resizable(False, False)
 
-    notebook = ttk.Notebook(root)
-    notebook.pack(expand=True, fill='both')
-
-    # ==== ABA 1: Biblioteca Online ====
-    aba_biblioteca = tk.Frame(notebook)
-    notebook.add(aba_biblioteca, text="Biblioteca Online")
+    aba_biblioteca = tk.Frame(root)
+    aba_biblioteca.pack(expand=True, fill='both')
 
     tk.Label(aba_biblioteca, text="Jogos Disponíveis:", font=('Arial', 14)).pack(pady=5)
     filtro_online_var = tk.StringVar()
@@ -74,19 +125,81 @@ def criar_interface():
     conteudo_frame = tk.Frame(aba_biblioteca)
     conteudo_frame.pack(expand=True, fill='both')
 
+    sidebar_frame = tk.Frame(conteudo_frame, width=10)
+    sidebar_frame.pack(side="left", fill="y", padx=10)
+    tk.Label(sidebar_frame, text="Jogos Baixados", font=('Arial', 12, 'bold')).pack(pady=5)
+
     listbox = tk.Listbox(conteudo_frame, font=('Arial', 12), width=30)
     listbox.pack(side="left", fill="both", expand=True, padx=10)
-
     scrollbar = tk.Scrollbar(conteudo_frame)
     scrollbar.pack(side="left", fill="y")
     listbox.config(yscrollcommand=scrollbar.set)
     scrollbar.config(command=listbox.yview)
 
-    capa_label = tk.Label(conteudo_frame)
-    capa_label.pack(side="left", padx=10, pady=10)
+    lateral_frame = tk.Frame(conteudo_frame)
+    lateral_frame.pack(side="left", padx=10, pady=10)
 
+    capa_label = tk.Label(lateral_frame)
+    capa_label.pack()
+    botao_acao = tk.Button(lateral_frame, text="", font=('Arial', 12))
+    botao_acao.pack(pady=10)
+    botao_excluir = tk.Button(lateral_frame, text="Excluir Jogo", font=('Arial', 12))
+
+
+
+    canvas_sidebar = tk.Canvas(sidebar_frame, width=200)
+    scrollbar_sidebar = tk.Scrollbar(sidebar_frame, orient="vertical", command=canvas_sidebar.yview)
+    scrollable_frame = tk.Frame(canvas_sidebar)
+
+    scrollable_frame.bind("<Configure>", lambda e: canvas_sidebar.configure(scrollregion=canvas_sidebar.bbox("all")))
+    canvas_sidebar.create_window((0, 0), window=scrollable_frame, anchor="nw")
+    canvas_sidebar.configure(yscrollcommand=scrollbar_sidebar.set)
+    canvas_sidebar.pack(side="top", fill="both", expand=True)
+    scrollbar_sidebar.pack(side="right", fill="y")
+
+    miniaturas = {}
     jogos = carregar_jogos()
     jogos_filtrados = list(jogos)
+
+    def selecionar_jogo(nome_jogo):
+        for i, jogo in enumerate(jogos_filtrados):
+            if jogo["nome"] == nome_jogo:
+                listbox.selection_clear(0, tk.END)
+                listbox.selection_set(i)
+                listbox.see(i)
+                listbox.event_generate("<<ListboxSelect>>")
+                break
+
+    def atualizar_sidebar_baixados():
+        for widget in scrollable_frame.winfo_children():
+            widget.destroy()
+        miniaturas.clear()
+
+        for jogo in jogos:
+            if jogo_baixado(jogo["nome"]):
+                try:
+                    caminho = os.path.join(CAPAS_DIR, f"{jogo['nome']}.jpg")
+                    if os.path.exists(caminho):
+                        imagem = Image.open(caminho).resize((40, 60), Image.LANCZOS)
+                        imagem_tk = ImageTk.PhotoImage(imagem)
+                        miniaturas[jogo["nome"]] = imagem_tk
+
+                        item_frame = tk.Frame(scrollable_frame)
+                        item_frame.pack(pady=5, anchor='w', fill='x')
+
+                        lbl_imagem = tk.Label(item_frame, image=imagem_tk)
+                        lbl_imagem.pack(side='left', padx=5)
+
+                        lbl_texto = tk.Label(item_frame, text=jogo["nome"], font=('Arial', 8), anchor='w', wraplength=120, justify='left')
+                        lbl_texto.pack(side='left', padx=5)
+
+                        # Evento para ambos abrirem o jogo
+                        lbl_imagem.bind("<Button-1>", lambda e, nome=jogo["nome"]: selecionar_jogo(nome))
+                        lbl_texto.bind("<Button-1>", lambda e, nome=jogo["nome"]: selecionar_jogo(nome))
+
+                except:
+                    continue
+
 
     def exibir_jogos_filtrados():
         filtro = filtro_online_var.get().lower()
@@ -94,18 +207,18 @@ def criar_interface():
         jogos_filtrados.clear()
         for jogo in jogos:
             nome_base = jogo["nome"]
-            caminho_iso = os.path.join(PASTA_JOGOS, f"{nome_base}.iso")
-            nome_exibido = f"{nome_base} (baixado)" if os.path.exists(caminho_iso) else nome_base
             if filtro in nome_base.lower():
                 jogos_filtrados.append(jogo)
+                nome_exibido = f"{nome_base} (baixado)" if jogo_baixado(nome_base) else nome_base
                 listbox.insert(tk.END, nome_exibido)
+        atualizar_sidebar_baixados()
 
     filtro_online_var.trace_add('write', lambda *args: exibir_jogos_filtrados())
 
     def atualizar_capa(event):
         index = listbox.curselection()
         if index:
-            nome_lista = listbox.get(index)
+            nome_lista = listbox.get(index[0])
             nome_limpo = nome_lista.replace(" (baixado)", "")
             for jogo in jogos_filtrados:
                 if jogo["nome"] == nome_limpo:
@@ -115,67 +228,11 @@ def criar_interface():
                         capa_label.image = capa
                     else:
                         capa_label.config(image='', text='Capa não encontrada')
+                    atualizar_info_botao(jogo)
                     break
 
     listbox.bind("<<ListboxSelect>>", atualizar_capa)
-
-    def baixar_selecionado():
-        index = listbox.curselection()
-        if index:
-            nome_lista = listbox.get(index)
-            nome_limpo = nome_lista.replace(" (baixado)", "")
-            for i, jogo in enumerate(jogos_filtrados):
-                if jogo["nome"] == nome_limpo:
-                    iniciar_download(jogo, listbox, index[0])
-                    break
-        else:
-            messagebox.showwarning("Aviso", "Selecione um jogo para baixar.")
-
-    tk.Button(aba_biblioteca, text="Baixar Jogo Selecionado", command=baixar_selecionado, font=('Arial', 12)).pack(pady=10)
+    botao_ver_downloads = tk.Button(sidebar_frame, text="Ver Downloads", font=('Arial', 12), command=abrir_janela_downloads)
+    botao_ver_downloads.pack(pady=10)
     exibir_jogos_filtrados()
-
-    # ==== ABA 2: Jogos Baixados ====
-    aba_baixados = tk.Frame(notebook)
-    notebook.add(aba_baixados, text="Jogos Baixados")
-
-    tk.Label(aba_baixados, text="Jogos Baixados:", font=('Arial', 14)).pack(pady=5)
-    filtro_baixado_var = tk.StringVar()
-    tk.Entry(aba_baixados, textvariable=filtro_baixado_var, font=('Arial', 12)).pack(pady=5, fill='x', padx=10)
-
-    lista_baixados = tk.Listbox(aba_baixados, font=('Arial', 12), width=60)
-    lista_baixados.pack(pady=10)
-
-    def exibir_baixados_filtrados():
-        filtro = filtro_baixado_var.get().lower()
-        formatos_dados = (".iso", ".bin", ".img", ".mdf", ".nrg", ".gz", ".chd", ".cso")
-        arquivos = os.listdir(PASTA_JOGOS)
-
-        exibidos = set()
-        lista_baixados.delete(0, tk.END)
-
-        for arquivo in sorted(arquivos):
-            nome_arquivo = arquivo.lower()
-            nome_base, ext = os.path.splitext(nome_arquivo)
-
-            if ext in (".cue", ".mds", ".ccd"):
-                continue  # pula arquivos auxiliares
-
-            if ext in formatos_dados and filtro in nome_arquivo:
-                if nome_base not in exibidos:
-                    exibidos.add(nome_base)
-                    lista_baixados.insert(tk.END, arquivo)
-
-
-
-    filtro_baixado_var.trace_add('write', lambda *args: exibir_baixados_filtrados())
-
-    tk.Button(aba_baixados, text="Abrir Pasta de Downloads", command=utils.abrir_pasta, font=('Arial', 12)).pack(pady=5)
-
-    def atualizar_lista_baixados():
-        exibir_baixados_filtrados()
-
-    # Define a função de atualização dinamicamente no módulo utils
-    utils.atualizar_lista_baixados = atualizar_lista_baixados
-
-    atualizar_lista_baixados()
     root.mainloop()

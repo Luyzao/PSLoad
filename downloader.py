@@ -57,7 +57,7 @@ def baixar_e_descompactar(jogo, update_status_callback):
         file_id = jogo["id"]
         zip_path = os.path.join(PASTA_JOGOS, f"{nome}.zip")
 
-        update_status_callback(f"{nome} (Baixando...)")
+        update_status_callback(f"{nome} (Iniciando...)")
         baixar_com_gdown(file_id, zip_path, update_status_callback,nome)
 
         update_status_callback(f"{nome} (Extraindo...)")
