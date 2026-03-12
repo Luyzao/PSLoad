@@ -26,7 +26,7 @@ class AvisoConfiguracaoPCSX2(tk.Toplevel):
 
     def __init__(self, master=None):
         super().__init__(master)
- 
+  
         self.title("Configuração inicial do PCSX2")
         self.geometry("520x320")
         self.resizable(False, False)
