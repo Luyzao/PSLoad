@@ -9,6 +9,7 @@ import utils
 from downloader import baixar_e_descompactar, PASTA_JOGOS
 from igdb_api import baixar_capa
 from remover import deletar_jogo
+from pcsx2_instalador import instalar_pcsx2_thread
 
 CAPAS_DIR = "capas"
 FORMATOS_VALIDOS = (".iso", ".bin", ".img", ".mdf", ".nrg", ".gz", ".chd", ".cso")
@@ -114,47 +115,139 @@ def criar_interface():
     y = (root.winfo_screenheight() - altura) // 2
     root.geometry(f"{largura}x{altura}+{x}+{y}")
     root.resizable(False, False)
+    img_psx2 = Image.open("assets/PCSX2_logo4.png")
+    img_psx2 = img_psx2.resize((32, 32), Image.LANCZOS)
+    img_psx2_tk = ImageTk.PhotoImage(img_psx2)
+    BG_PRINCIPAL = "#1e1e1e"
+    BG_SECUNDARIO = "#2b2b2b"
+    BG_HOVER = "#3a3a3a"
+    TEXTO = "white"
+    BORDA = "#444444"
 
-    aba_biblioteca = tk.Frame(root)
+    root.configure(bg=BG_PRINCIPAL)
+
+    aba_biblioteca = tk.Frame(root, bg=BG_PRINCIPAL)
     aba_biblioteca.pack(expand=True, fill='both')
 
-    tk.Label(aba_biblioteca, text="Jogos Disponíveis:", font=('Arial', 14)).pack(pady=5)
-    filtro_online_var = tk.StringVar()
-    tk.Entry(aba_biblioteca, textvariable=filtro_online_var, font=('Arial', 12)).pack(pady=5, fill='x', padx=10)
+    botao_psx2 = tk.Button(
+        aba_biblioteca,
+        text="PSX2",
+        image=img_psx2_tk,
+        compound="left",
+        font=('Arial', 12),
+        padx=10,
+        pady=5,
+        bg=BG_SECUNDARIO,
+        fg=TEXTO,
+        activebackground=BG_HOVER,
+        activeforeground=TEXTO,
+        relief="solid",
+        bd=1,
+        command=lambda: instalar_pcsx2_thread(root)
+    )
+    botao_psx2.image = img_psx2_tk  
+    botao_psx2.pack(pady=10)
 
-    conteudo_frame = tk.Frame(aba_biblioteca)
+
+    tk.Label(
+        aba_biblioteca,
+        text="Jogos Disponíveis:",
+        font=('Arial', 14),
+        bg=BG_PRINCIPAL,
+        fg=TEXTO
+    ).pack(pady=5)
+    filtro_online_var = tk.StringVar()
+    tk.Entry(
+        aba_biblioteca,
+        textvariable=filtro_online_var,
+        font=('Arial', 12),
+        bg=BG_SECUNDARIO,
+        fg=TEXTO,
+        insertbackground=TEXTO,
+        relief="solid",
+        bd=1
+    ).pack(pady=0, fill='x', padx=0)
+
+    conteudo_frame = tk.Frame(aba_biblioteca, bg=BG_PRINCIPAL)
     conteudo_frame.pack(expand=True, fill='both')
 
-    sidebar_frame = tk.Frame(conteudo_frame, width=10)
+    sidebar_frame = tk.Frame(conteudo_frame, width=10, bg=BG_PRINCIPAL)
     sidebar_frame.pack(side="left", fill="y", padx=10)
-    tk.Label(sidebar_frame, text="Jogos Baixados", font=('Arial', 12, 'bold')).pack(pady=5)
+    tk.Label(sidebar_frame, text="Jogos Baixados",   bg=BG_SECUNDARIO,
+    fg=TEXTO, font=('Arial', 12, 'bold')).pack(pady=0)
 
-    listbox = tk.Listbox(conteudo_frame, font=('Arial', 12), width=30)
+    listbox = tk.Listbox(
+        conteudo_frame,
+        font=('Arial', 12),
+        width=30,
+        bg=BG_SECUNDARIO,
+        fg=TEXTO,
+        selectbackground="#505050",
+        relief="solid",
+        bd=1
+    )
     listbox.pack(side="left", fill="both", expand=True, padx=10)
     scrollbar = tk.Scrollbar(conteudo_frame)
     scrollbar.pack(side="left", fill="y")
     listbox.config(yscrollcommand=scrollbar.set)
     scrollbar.config(command=listbox.yview)
 
-    lateral_frame = tk.Frame(conteudo_frame)
+    lateral_frame = tk.Frame(conteudo_frame, bg=BG_PRINCIPAL)
     lateral_frame.pack(side="left", padx=10, pady=10)
 
-    capa_label = tk.Label(lateral_frame)
+    capa_label = tk.Label(lateral_frame, bg=BG_PRINCIPAL)
     capa_label.pack()
-    botao_acao = tk.Button(lateral_frame, text="", font=('Arial', 12))
+    botao_acao = tk.Button( lateral_frame,
+    text="",
+    font=('Arial', 12),
+    bg=BG_SECUNDARIO,
+    fg=TEXTO,
+    activebackground=BG_HOVER,
+    activeforeground=TEXTO,
+    relief="solid",
+    bd=1)
     botao_acao.pack(pady=10)
-    botao_excluir = tk.Button(lateral_frame, text="Excluir Jogo", font=('Arial', 12))
+    botao_excluir = tk.Button( lateral_frame,
+    text="",
+    font=('Arial', 12),
+    bg=BG_SECUNDARIO,
+    fg=TEXTO,
+    activebackground=BG_HOVER,
+    activeforeground=TEXTO,
+    relief="solid",
+    bd=1)
 
 
 
-    canvas_sidebar = tk.Canvas(sidebar_frame, width=200)
-    scrollbar_sidebar = tk.Scrollbar(sidebar_frame, orient="vertical", command=canvas_sidebar.yview)
-    scrollable_frame = tk.Frame(canvas_sidebar)
+    frame_lista = tk.Frame(sidebar_frame, bg=BG_PRINCIPAL)
+    frame_lista.pack(fill="both", expand=True)
 
-    scrollable_frame.bind("<Configure>", lambda e: canvas_sidebar.configure(scrollregion=canvas_sidebar.bbox("all")))
+    canvas_sidebar = tk.Canvas(
+        frame_lista,
+        width=200,
+        bg=BG_PRINCIPAL,
+        highlightthickness=1,
+        highlightbackground=BORDA
+    )
+
+    scrollbar_sidebar = tk.Scrollbar(
+        frame_lista,
+        orient="vertical",
+        command=canvas_sidebar.yview
+    )
+
+    scrollable_frame = tk.Frame(canvas_sidebar, bg=BG_PRINCIPAL)
+
+    scrollable_frame.bind(
+        "<Configure>",
+        lambda e: canvas_sidebar.configure(scrollregion=canvas_sidebar.bbox("all"))
+    )
+
     canvas_sidebar.create_window((0, 0), window=scrollable_frame, anchor="nw")
+
     canvas_sidebar.configure(yscrollcommand=scrollbar_sidebar.set)
-    canvas_sidebar.pack(side="top", fill="both", expand=True)
+
+    canvas_sidebar.pack(side="left", fill="both", expand=True)
     scrollbar_sidebar.pack(side="right", fill="y")
 
     miniaturas = {}
@@ -184,13 +277,22 @@ def criar_interface():
                         imagem_tk = ImageTk.PhotoImage(imagem)
                         miniaturas[jogo["nome"]] = imagem_tk
 
-                        item_frame = tk.Frame(scrollable_frame)
+                        item_frame = tk.Frame(scrollable_frame, bg=BG_PRINCIPAL)
                         item_frame.pack(pady=5, anchor='w', fill='x')
 
-                        lbl_imagem = tk.Label(item_frame, image=imagem_tk)
+                        lbl_imagem = tk.Label(item_frame, image=imagem_tk, bg=BG_PRINCIPAL)
                         lbl_imagem.pack(side='left', padx=5)
 
-                        lbl_texto = tk.Label(item_frame, text=jogo["nome"], font=('Arial', 8), anchor='w', wraplength=120, justify='left')
+                        lbl_texto = tk.Label(
+                            item_frame,
+                            text=jogo["nome"],
+                            font=('Arial', 8),
+                            anchor='w',
+                            wraplength=120,
+                            justify='left',
+                            bg=BG_PRINCIPAL,
+                            fg=TEXTO
+                        )
                         lbl_texto.pack(side='left', padx=5)
 
                         # Evento para ambos abrirem o jogo
@@ -232,7 +334,7 @@ def criar_interface():
                     break
 
     listbox.bind("<<ListboxSelect>>", atualizar_capa)
-    botao_ver_downloads = tk.Button(sidebar_frame, text="Ver Downloads", font=('Arial', 12), command=abrir_janela_downloads)
+    botao_ver_downloads = tk.Button(sidebar_frame, text="Ver Downloads",bg=BG_SECUNDARIO,fg=TEXTO, font=('Arial', 12), command=abrir_janela_downloads)
     botao_ver_downloads.pack(pady=10)
     exibir_jogos_filtrados()
     root.mainloop()
