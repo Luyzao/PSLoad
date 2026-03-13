@@ -4,8 +4,11 @@ from PIL import Image, ImageTk
 import json
 import os
 import threading
-
+import subprocess
 import utils
+import pyautogui
+import time
+
 from downloader import baixar_e_descompactar, PASTA_JOGOS
 from igdb_api import baixar_capa
 from remover import deletar_jogo
@@ -40,7 +43,11 @@ def jogo_baixado(nome_base):
 def atualizar_info_botao(jogo):
     selecao = listbox.curselection()
     if jogo_baixado(jogo["nome"]):
-        botao_acao.config(text="Baixado", state="disabled")
+        botao_acao.config(
+            text="Jogar",
+            state="normal",
+            command=lambda j=jogo: jogar_jogo(j["nome"])
+        )
         botao_excluir.config(text="Excluir Jogo", state="normal", command=lambda j=jogo: excluir_jogo_confirmacao(j))
         botao_excluir.pack(pady=5)
     else:
@@ -62,6 +69,33 @@ def excluir_jogo_confirmacao(jogo):
         botao_acao.config(text="", state="disabled")
         botao_excluir.pack_forget()
         capa_label.config(image='', text='')
+
+def obter_caminho_jogo(nome_base):
+    for root, _, arquivos in os.walk(PASTA_JOGOS):
+        for arquivo in arquivos:
+            if arquivo.lower().endswith(FORMATOS_VALIDOS) and nome_base.lower() in arquivo.lower():
+                return os.path.join(root, arquivo)
+    return None
+
+def jogar_jogo(nome_jogo):
+    caminho_jogo = obter_caminho_jogo(nome_jogo)
+
+    if not caminho_jogo:
+        messagebox.showerror("Erro", "Arquivo do jogo não encontrado.")
+        return
+
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    pcsx2_path = os.path.join(BASE_DIR, "pcsx2", "pcsx2-qt.exe")
+
+    if not os.path.exists(pcsx2_path):
+        messagebox.showerror("Erro", "PCSX2 não encontrado.")
+        return
+
+    subprocess.Popen([pcsx2_path, caminho_jogo])
+
+    time.sleep(2)
+
+    pyautogui.hotkey("alt", "enter")
 
 def iniciar_download(jogo, listbox, index):
     progresso_var = tk.StringVar(value=f"{jogo['nome']} (Iniciando...)")
@@ -166,7 +200,7 @@ def criar_interface():
         insertbackground=TEXTO,
         relief="solid",
         bd=1
-    ).pack(pady=0, fill='x', padx=0)
+    ).pack(pady=0, fill='x', padx=10)
 
     conteudo_frame = tk.Frame(aba_biblioteca, bg=BG_PRINCIPAL)
     conteudo_frame.pack(expand=True, fill='both')
@@ -216,8 +250,7 @@ def criar_interface():
     activeforeground=TEXTO,
     relief="solid",
     bd=1)
-
-
+    
 
     frame_lista = tk.Frame(sidebar_frame, bg=BG_PRINCIPAL)
     frame_lista.pack(fill="both", expand=True)
@@ -269,7 +302,12 @@ def criar_interface():
         miniaturas.clear()
 
         for jogo in jogos:
-            if jogo_baixado(jogo["nome"]):
+           if jogo_baixado(jogo["nome"]):
+                botao_acao.config(
+                    text="Jogar",
+                    state="normal",
+                    command=lambda j=jogo: jogar_jogo(j["nome"])
+                )
                 try:
                     caminho = os.path.join(CAPAS_DIR, f"{jogo['nome']}.jpg")
                     if os.path.exists(caminho):

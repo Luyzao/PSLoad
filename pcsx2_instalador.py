@@ -18,10 +18,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PASTA_PCSX2 = os.path.join(BASE_DIR, "pcsx2")
 PCSX2_EXE = os.path.join(PASTA_PCSX2, "pcsx2-qt.exe")
 
-
-# =========================
-# JANELA DE AVISO
-# =========================
 class AvisoConfiguracaoPCSX2(tk.Toplevel):
 
     def __init__(self, master=None):
@@ -78,9 +74,7 @@ class AvisoConfiguracaoPCSX2(tk.Toplevel):
                 "Erro",
                 "PCSX2 não encontrado."
             )
-# =========================
-# INSTALADOR
-# =========================
+
 class InstaladorPCSX2(tk.Toplevel):
 
     def __init__(self, master=None):
@@ -233,7 +227,6 @@ class InstaladorPCSX2(tk.Toplevel):
             except:
                 pass
 
-            # mensagem de sucesso
             self.master.after(
                 0,
                 lambda: messagebox.showinfo(
@@ -242,10 +235,8 @@ class InstaladorPCSX2(tk.Toplevel):
                 )
             )
 
-            # fechar instalador
             self.master.after(0, self.destroy)
 
-            # abrir aviso
             self.master.after(
                 0,
                 lambda: AvisoConfiguracaoPCSX2(self.master)
@@ -263,17 +254,10 @@ class InstaladorPCSX2(tk.Toplevel):
 
             self.master.after(0, self.destroy)
 
-
-# =========================
-# FUNÇÃO PARA CHAMAR
-# =========================
 def instalar_pcsx2_thread(master=None):
     InstaladorPCSX2(master)
 
 
-# =========================
-# TESTE
-# =========================
 if __name__ == "__main__":
 
     root = tk.Tk()
